@@ -31,6 +31,7 @@ public class SCNVideoWriter {
   public convenience init?(withARSCNView view: ARSCNView, options: Options = .default) throws {
     var options = options
     options.renderSize = CGSize(width: view.bounds.width * view.contentScaleFactor, height: view.bounds.height * view.contentScaleFactor)
+    options.videoSize = options.renderSize
     try self.init(scene: view.scene, options: options)
   }
   
