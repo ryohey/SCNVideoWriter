@@ -20,7 +20,6 @@ public class SCNVideoWriter {
   private let frameQueue = DispatchQueue(label: "com.noppelabs.SCNVideoWriter.frameQueue")
   private static let renderQueue = DispatchQueue(label: "com.noppelabs.SCNVideoWriter.renderQueue")
   private static let renderSemaphore = DispatchSemaphore(value: 3)
-  private var displayLink: CADisplayLink? = nil
   private var initialTime: CFTimeInterval = 0.0
   private var currentTime: CFTimeInterval = 0.0
   
@@ -59,7 +58,6 @@ public class SCNVideoWriter {
   public func startWriting() {
     SCNVideoWriter.renderQueue.async { [weak self] in
       SCNVideoWriter.renderSemaphore.wait()
-      self?.startDisplayLink()
       self?.startInputPipeline()
     }
   }
@@ -67,53 +65,51 @@ public class SCNVideoWriter {
   public func finishWriting(completionHandler: (@escaping (_ url: URL) -> Void)) {
     let outputUrl = options.outputUrl
     input.markAsFinished()
-    writer.finishWriting(completionHandler: { [weak self] in
+    writer.finishWriting {
       completionHandler(outputUrl)
-      self?.stopDisplayLink()
       SCNVideoWriter.renderSemaphore.signal()
-    })
+    }
   }
   
-  private func startDisplayLink() {
-    currentTime = 0.0
-    initialTime = CFAbsoluteTimeGetCurrent()
-    displayLink = CADisplayLink(target: self, selector: #selector(updateDisplayLink))
-    displayLink?.preferredFramesPerSecond = options.fps
-    displayLink?.add(to: .main, forMode: .common)
-  }
-  
-  @objc private func updateDisplayLink() {
+  public func sceneDidUpdate(atTime time: TimeInterval) {
     frameQueue.async { [weak self] in
-      guard let input = self?.input, input.isReadyForMoreMediaData else { return }
-      guard let pool = self?.pixelBufferAdaptor.pixelBufferPool else { return }
-      guard let renderSize = self?.options.renderSize else { return }
-      guard let videoSize = self?.options.videoSize else { return }
-      self?.renderSnapshot(with: pool, renderSize: renderSize, videoSize: videoSize)
+        guard let `self` = self,
+            let pool = self.pixelBufferAdaptor.pixelBufferPool,
+            self.input.isReadyForMoreMediaData else {
+                return
+        }
+        self.renderSnapshot(atTime: time,
+                            pool: pool,
+                            renderSize: self.options.renderSize,
+                            videoSize: self.options.videoSize)
     }
   }
   
   private func startInputPipeline() {
+    currentTime = 0.0
+    initialTime = CFAbsoluteTimeGetCurrent()
     writer.startWriting()
     writer.startSession(atSourceTime: CMTime.zero)
     input.requestMediaDataWhenReady(on: frameQueue, using: {})
   }
   
-  private func renderSnapshot(with pool: CVPixelBufferPool, renderSize: CGSize, videoSize: CGSize) {
+  private func renderSnapshot(atTime time: TimeInterval, pool: CVPixelBufferPool, renderSize: CGSize, videoSize: CGSize) {
+    guard writer.status == .writing else {
+      return
+    }
     autoreleasepool {
       currentTime = CFAbsoluteTimeGetCurrent() - initialTime
-      let image = renderer.snapshot(atTime: currentTime, with: renderSize, antialiasingMode: .multisampling4X)
-      guard let croppedImage = image.fill(at: videoSize) else { return }
+      var image: UIImage? = nil
+      DispatchQueue.main.sync {
+        image = renderer.snapshot(atTime: time, with: renderSize, antialiasingMode: .multisampling4X)
+      }
+      guard let croppedImage = image?.fill(at: videoSize) else { return }
       guard let pixelBuffer = PixelBufferFactory.make(with: videoSize, from: croppedImage, usingBuffer: pool) else { return }
       let value: Int64 = Int64(currentTime * CFTimeInterval(options.timeScale))
       let presentationTime = CMTimeMake(value: value, timescale: options.timeScale)
       pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
       updateFrameHandler?(croppedImage, presentationTime)
     }
-  }
-  
-  private func stopDisplayLink() {
-    displayLink?.invalidate()
-    displayLink = nil
   }
 }
 
