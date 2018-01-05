@@ -10,6 +10,10 @@ import SceneKit
 import ARKit
 import AVFoundation
 
+public protocol ImageProcessor {
+  func process(image: UIImage) -> UIImage
+}
+
 public class SCNVideoWriter {
   private let writer: AVAssetWriter
   private let input: AVAssetWriterInput
@@ -24,7 +28,7 @@ public class SCNVideoWriter {
   private var currentTime: CFTimeInterval = 0.0
   
   public var updateFrameHandler: ((_ image: UIImage, _ time: CMTime) -> Void)? = nil
-  private var finishedCompletionHandler: ((_ url: URL) -> Void)? = nil
+  public var imageProcessor: ImageProcessor?
   
   @available(iOS 11.0, *)
   public convenience init?(withARSCNView view: ARSCNView, options: Options = .default) throws {
@@ -101,7 +105,8 @@ public class SCNVideoWriter {
       currentTime = CFAbsoluteTimeGetCurrent() - initialTime
       var image: UIImage? = nil
       DispatchQueue.main.sync {
-        image = renderer.snapshot(atTime: time, with: renderSize, antialiasingMode: .multisampling4X)
+        let snapshot = renderer.snapshot(atTime: currentTime, with: renderSize, antialiasingMode: .multisampling4X)
+        image = imageProcessor?.process(image: snapshot) ?? snapshot
       }
       guard let croppedImage = image?.fill(at: videoSize) else { return }
       guard let pixelBuffer = PixelBufferFactory.make(with: videoSize, from: croppedImage, usingBuffer: pool) else { return }
