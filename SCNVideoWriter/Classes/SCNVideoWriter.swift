@@ -102,10 +102,11 @@ public class SCNVideoWriter {
       return
     }
     autoreleasepool {
-      currentTime = CFAbsoluteTimeGetCurrent() - initialTime
+      let now = CFAbsoluteTimeGetCurrent()
+      currentTime = now - initialTime
       var image: UIImage? = nil
       DispatchQueue.main.sync {
-        let snapshot = renderer.snapshot(atTime: currentTime, with: renderSize, antialiasingMode: .multisampling4X)
+        let snapshot = renderer.snapshot(atTime: now, with: renderSize, antialiasingMode: .multisampling4X)
         image = imageProcessor?.process(image: snapshot) ?? snapshot
       }
       guard let croppedImage = image?.fill(at: videoSize) else { return }
