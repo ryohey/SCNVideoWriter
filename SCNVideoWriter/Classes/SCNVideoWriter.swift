@@ -25,7 +25,6 @@ public class SCNVideoWriter {
   private static let renderQueue = DispatchQueue(label: "com.noppelabs.SCNVideoWriter.renderQueue")
   private static let renderSemaphore = DispatchSemaphore(value: 3)
   private var initialTime: CFTimeInterval = 0.0
-  private var currentTime: CFTimeInterval = 0.0
   
   public var updateFrameHandler: ((_ image: UIImage, _ time: CMTime) -> Void)? = nil
   public var imageProcessor: ImageProcessor?
@@ -90,7 +89,6 @@ public class SCNVideoWriter {
   }
   
   private func startInputPipeline() {
-    currentTime = 0.0
     initialTime = CFAbsoluteTimeGetCurrent()
     writer.startWriting()
     writer.startSession(atSourceTime: CMTime.zero)
@@ -103,13 +101,10 @@ public class SCNVideoWriter {
     }
     autoreleasepool {
       let now = CFAbsoluteTimeGetCurrent()
-      currentTime = now - initialTime
-      var image: UIImage? = nil
-      DispatchQueue.main.sync {
-        let snapshot = renderer.snapshot(atTime: now, with: renderSize, antialiasingMode: .multisampling4X)
-        image = imageProcessor?.process(image: snapshot) ?? snapshot
-      }
-      guard let croppedImage = image?.fill(at: videoSize) else { return }
+      let currentTime = now - initialTime
+      let snapshot = renderer.snapshot(atTime: time, with: renderSize, antialiasingMode: .multisampling4X)
+      let image = imageProcessor?.process(image: snapshot) ?? snapshot
+      guard let croppedImage = image.fill(at: videoSize) else { return }
       guard let pixelBuffer = PixelBufferFactory.make(with: videoSize, from: croppedImage, usingBuffer: pool) else { return }
       let value: Int64 = Int64(currentTime * CFTimeInterval(options.timeScale))
       let presentationTime = CMTimeMake(value: value, timescale: options.timeScale)
