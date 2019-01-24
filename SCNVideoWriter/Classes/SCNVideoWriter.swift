@@ -32,14 +32,14 @@ public class SCNVideoWriter {
   public var imageProcessor: ImageProcessor?
   
   @available(iOS 11.0, *)
-  public convenience init?(withARSCNView view: ARSCNView, options: Options = .default) throws {
+  public convenience init(withARSCNView view: ARSCNView, options: Options = .default) throws {
     var options = options
     options.renderSize = CGSize(width: view.bounds.width * view.contentScaleFactor, height: view.bounds.height * view.contentScaleFactor)
     options.videoSize = options.renderSize
     try self.init(scene: view.scene, options: options)
   }
   
-  public init?(scene: SCNScene, options: Options = .default) throws {
+  public init(scene: SCNScene, options: Options = .default) throws {
     self.options = options
     self.renderer = SCNRenderer(device: nil, options: nil)
     renderer.scene = scene
