@@ -26,7 +26,6 @@ public class SCNVideoWriter {
   private static let renderSemaphore = DispatchSemaphore(value: 3)
   private var displayLink: CADisplayLink? = nil
   private var initialTime: CFTimeInterval = 0.0
-  private var currentTime: CFTimeInterval = 0.0
   
   public var updateFrameHandler: ((_ image: UIImage, _ time: CMTime) -> Void)? = nil
   private var finishedCompletionHandler: ((_ url: URL) -> Void)? = nil
@@ -80,7 +79,6 @@ public class SCNVideoWriter {
   }
   
   private func startDisplayLink() {
-    currentTime = 0.0
     initialTime = CFAbsoluteTimeGetCurrent()
     displayLink = CADisplayLink(target: self, selector: #selector(updateDisplayLink))
     displayLink?.preferredFramesPerSecond = options.fps
@@ -104,9 +102,13 @@ public class SCNVideoWriter {
   }
   
   private func renderSnapshot(with pool: CVPixelBufferPool, renderSize: CGSize, videoSize: CGSize) {
+    guard writer.status == .writing else {
+      return
+    }
     autoreleasepool {
-      currentTime = CFAbsoluteTimeGetCurrent() - initialTime
-      var image = renderer.snapshot(atTime: currentTime, with: renderSize, antialiasingMode: .multisampling4X)
+      let renderTime = CACurrentMediaTime()
+      let currentTime = CFAbsoluteTimeGetCurrent() - initialTime
+      var image = renderer.snapshot(atTime: renderTime, with: renderSize, antialiasingMode: .multisampling4X)
       image = imageProcessor?.process(image: image) ?? image
       guard let croppedImage = image.fill(at: videoSize) else { return }
       guard let pixelBuffer = PixelBufferFactory.make(with: videoSize, from: croppedImage, usingBuffer: pool) else { return }
